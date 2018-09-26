@@ -9,6 +9,7 @@
 
 #include <sys/types.h>
 #include <vm/page.h>
+#include <vm/page_alloc_request.h>
 #include <zircon/compiler.h>
 #include <zircon/types.h>
 
@@ -73,3 +74,8 @@ paddr_t vaddr_to_paddr(const void* va);
 
 // paddr to vm_page_t
 vm_page_t* paddr_to_vm_page(paddr_t addr);
+
+// new delayed allocation routine
+zx_status_t pmm_alloc_pages_delayed(size_t count, uint alloc_flags, list_node* list,
+        fbl::RefPtr<PageAllocRequest>& request) __NONNULL((3));
+
