@@ -35,6 +35,7 @@ MODULE_SRCS += \
     $(LOCAL_DIR)/vm_object_physical.cpp \
     $(LOCAL_DIR)/vm_page_list.cpp \
     $(LOCAL_DIR)/vm_unittest.cpp \
+    $(LOCAL_DIR)/vm_worker.cpp \
     $(LOCAL_DIR)/vmm.cpp \
 
 include make/module.mk

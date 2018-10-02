@@ -8,8 +8,9 @@
 
 #include <fbl/alloc_checker.h>
 #include <fbl/auto_lock.h>
-#include <fbl/intrusive_double_list.h>
+#include <fbl/intrusive_single_list.h>
 #include <fbl/ref_ptr.h>
+#include <zircon/listnode.h>
 #include <trace.h>
 
 #define LOCAL_TRACE 1
@@ -18,7 +19,7 @@ namespace {
 
 // page alloctor request queue state
 fbl::Mutex free_request_lock;
-fbl::DoublyLinkedList<PageAllocRequest*> free_requests;
+fbl::DoublyLinkedList<fbl::RefPtr<PageAllocRequest>> free_requests;
 size_t free_request_count;
 const size_t initial_free_request_pool = 1024;
 
@@ -35,7 +36,7 @@ void page_alloc_request_init() {
             panic("error allocating page allocator pool\n");
         }
 
-        free_requests.push_back(par);
+        free_requests.push_back(fbl::AdoptRef(par));
         free_request_count++;
     }
 
@@ -55,34 +56,56 @@ fbl::RefPtr<PageAllocRequest> PageAllocRequest::GetRequest() {
     auto request = free_requests.pop_front();
     free_request_count--;
 
-    LTRACEF("returning %p count %zu\n", request, free_request_count);
+    LTRACEF("returning %p count %zu\n", request.get(), free_request_count);
 
-    return fbl::AdoptRef<PageAllocRequest>(request);
+    return fbl::move(request);
 }
 
 void PageAllocRequest::fbl_recycle() {
-    // put the request back in the cleared state
-    Clear();
-
-    fbl::AutoLock guard(&free_request_lock);
-
-    LTRACEF("this %p: count %zu\n", this, free_request_count);
-
-    free_requests.push_back(this);
-    free_request_count++;
-}
-
-void PageAllocRequest::Clear() {
-    DEBUG_ASSERT(state_ != QUEUED);
+    // put the request back in the free state and add to the free queue
+    DEBUG_ASSERT_MSG(state_ == COMPLETED || state_ == FREE,
+                     "state is %s", StateToString(state_));
     DEBUG_ASSERT(list_is_empty(&page_list_));
 
     state_ = FREE;
     count_ = 0;
     event_.Unsignal();
+
+    fbl::AutoLock guard(&free_request_lock);
+
+    LTRACEF("this %p: count %zu\n", this, free_request_count);
+
+    // TODO: manually destruct/construct here
+
+    //free_requests.push_front(this);
+    free_request_count++;
 }
 
-void PageAllocRequest::Initialize(size_t count) {
+void PageAllocRequest::SetQueued(size_t count, uint alloc_flags) {
     DEBUG_ASSERT(state_ == FREE);
+    DEBUG_ASSERT(list_is_empty(&page_list_));
 
     count_ = count;
+    alloc_flags_ = alloc_flags;
+    state_ = QUEUED;
 }
+
+void PageAllocRequest::Complete(zx_status_t err, list_node* pages) {
+    DEBUG_ASSERT(state_ == QUEUED);
+    DEBUG_ASSERT(list_is_empty(&page_list_));
+
+    // set the status, copy the pages (if present), mark the request completed
+    error_ = err;
+    if (pages) {
+        list_move(pages, &page_list_);
+    }
+    state_ = COMPLETED;
+    event_.Signal();
+}
+
+zx_status_t PageAllocRequest::Wait(zx_time_t deadline) {
+    DEBUG_ASSERT(state_ != FREE);
+
+    return event_.Wait(deadline);
+}
+

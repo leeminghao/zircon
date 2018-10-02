@@ -84,6 +84,38 @@ static bool pmm_alloc_contiguous_one_test() {
     END_TEST;
 }
 
+static bool pmm_delayed_alloc_test() {
+    BEGIN_TEST;
+    list_node list = LIST_INITIAL_VALUE(list);
+
+    for (int i = 0; i < 3; i++) {
+        // do one delayed allocation
+        fbl::RefPtr<PageAllocRequest> request;
+        zx_status_t status = pmm_alloc_pages_delayed(1, 0, &list, request);
+        ASSERT_EQ(ZX_ERR_SHOULD_WAIT, status, "delayed alloc did not return should wait");
+        ASSERT_NE(nullptr, request.get(), "delayed alloc returned bad request");
+        ASSERT_EQ(true, list_is_empty(&list), "delayed alloc list was non empty");
+        ASSERT_EQ((size_t)1, request->count(), "delayed alloc count");
+        ASSERT_EQ((uint)0, request->alloc_flags(), "delayed alloc flags");
+
+        status = request->Wait();
+        ASSERT_EQ(ZX_OK, status, "delayed alloc wait did not return OK");
+
+        ASSERT_EQ(ZX_OK, request->error(), "delayed alloc error was not OK");
+
+        request->TakePageList(&list);
+        ASSERT_EQ((size_t)1, list_length(&list), "delayed alloc did not return 1 page");
+
+        // drop the ref to the request
+        request.reset(nullptr);
+
+        // free the page we allocated
+        pmm_free(&list);
+    }
+
+    END_TEST;
+}
+
 static uint32_t test_rand(uint32_t seed) {
     return (seed = seed * 1664525 + 1013904223);
 }
@@ -1078,3 +1110,9 @@ VM_UNITTEST(arch_noncontiguous_map)
 // Uncomment for debugging
 // VM_UNITTEST(dump_all_aspaces)  // Run last
 UNITTEST_END_TESTCASE(vm_tests, "vmtests", "Virtual memory tests");
+
+UNITTEST_START_TESTCASE(pmm_tests)
+VM_UNITTEST(pmm_smoke_test)
+VM_UNITTEST(pmm_delayed_alloc_test)
+UNITTEST_END_TESTCASE(pmm_tests, "pmmtests", "Physical memory manager tests");
+
