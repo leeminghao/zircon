@@ -86,20 +86,27 @@ zx_status_t pmm_alloc_pages(size_t count, uint alloc_flags, list_node* list) {
 
 zx_status_t pmm_alloc_pages_delayed(size_t count, uint alloc_flags, list_node* list,
                                     fbl::RefPtr<PageAllocRequest>& request) {
-    // temporary stubbed version that puts the request on a queue
-    request = PageAllocRequest::GetRequest();
-    if (!request) {
-        return ZX_ERR_NO_MEMORY;
+    if (alloc_flags & PMM_ALLOC_FLAG_FORCE_DELAYED_TEST) {
+        // temporary stubbed version that puts the request on a queue
+        request = PageAllocRequest::GetRequest();
+        if (!request) {
+            return ZX_ERR_NO_MEMORY;
+        }
+
+        // set up and queue the request
+        request->SetQueued(count, alloc_flags);
+
+        {
+            fbl::AutoLock guard(&alloc_queue_lock);
+            alloc_queue.push_back(request);
+        }
+
+        alloc_queue_worker.Signal();
+
+        return ZX_ERR_SHOULD_WAIT;
     }
 
-    // set up and queue the request
-    request->SetQueued(count, alloc_flags);
-
-    fbl::AutoLock guard(&alloc_queue_lock);
-    alloc_queue.push_back(request);
-    alloc_queue_worker.Signal();
-
-    return ZX_ERR_SHOULD_WAIT;
+    return pmm_alloc_pages(count, alloc_flags, list);
 }
 
 namespace {
@@ -179,13 +186,15 @@ void pmm_count_total_states(size_t state_count[VM_PAGE_STATE_COUNT_]) {
     pmm_node.CountTotalStates(state_count);
 }
 
-static void pmm_dump_timer(struct timer* t, zx_time_t now, void*) {
+namespace {
+
+void pmm_dump_timer(struct timer* t, zx_time_t now, void*) {
     zx_time_t deadline = zx_time_add_duration(now, ZX_SEC(1));
     timer_set_oneshot(t, deadline, &pmm_dump_timer, nullptr);
     pmm_node.DumpFree();
 }
 
-static int cmd_pmm(int argc, const cmd_args* argv, uint32_t flags) {
+int cmd_pmm(int argc, const cmd_args* argv, uint32_t flags) {
     bool is_panic = flags & CMD_FLAG_PANIC;
 
     if (argc < 2) {
@@ -232,5 +241,7 @@ STATIC_COMMAND_START
 STATIC_COMMAND_MASKED("pmm", "physical memory manager", &cmd_pmm, CMD_AVAIL_ALWAYS)
 #endif
 STATIC_COMMAND_END(pmm);
+
+} // namespace
 
 

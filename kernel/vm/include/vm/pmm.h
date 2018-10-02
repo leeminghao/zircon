@@ -34,6 +34,8 @@ zx_status_t pmm_add_arena(const pmm_arena_info_t* arena) __NONNULL((1));
 #define PMM_ALLOC_FLAG_ANY (0x0)    // no restrictions on which arena to allocate from
 #define PMM_ALLOC_FLAG_LO_MEM (0x1) // allocate only from arenas marked LO_MEM
 
+#define PMM_ALLOC_FLAG_FORCE_DELAYED_TEST (1u<<31) // TESTING: always delay allocate
+
 // Allocate count pages of physical memory, adding to the tail of the passed list.
 // The list must be initialized.
 zx_status_t pmm_alloc_pages(size_t count, uint alloc_flags, list_node* list) __NONNULL((3));

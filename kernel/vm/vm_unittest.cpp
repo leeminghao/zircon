@@ -88,15 +88,17 @@ static bool pmm_delayed_alloc_test() {
     BEGIN_TEST;
     list_node list = LIST_INITIAL_VALUE(list);
 
-    for (int i = 0; i < 3; i++) {
+    // allocate up to 3 at a time, then clear at once
+    fbl::RefPtr<PageAllocRequest> requests[3];
+    uint flags = PMM_ALLOC_FLAG_FORCE_DELAYED_TEST;
+    for (auto& request: requests) {
         // do one delayed allocation
-        fbl::RefPtr<PageAllocRequest> request;
-        zx_status_t status = pmm_alloc_pages_delayed(1, 0, &list, request);
+        zx_status_t status = pmm_alloc_pages_delayed(1, flags, &list, request);
         ASSERT_EQ(ZX_ERR_SHOULD_WAIT, status, "delayed alloc did not return should wait");
         ASSERT_NE(nullptr, request.get(), "delayed alloc returned bad request");
         ASSERT_EQ(true, list_is_empty(&list), "delayed alloc list was non empty");
         ASSERT_EQ((size_t)1, request->count(), "delayed alloc count");
-        ASSERT_EQ((uint)0, request->alloc_flags(), "delayed alloc flags");
+        ASSERT_EQ(flags, request->alloc_flags(), "delayed alloc flags");
 
         status = request->Wait();
         ASSERT_EQ(ZX_OK, status, "delayed alloc wait did not return OK");
@@ -106,11 +108,13 @@ static bool pmm_delayed_alloc_test() {
         request->TakePageList(&list);
         ASSERT_EQ((size_t)1, list_length(&list), "delayed alloc did not return 1 page");
 
-        // drop the ref to the request
-        request.reset(nullptr);
-
         // free the page we allocated
         pmm_free(&list);
+    }
+
+    // free all the requests
+    for (auto& request: requests) {
+        request.reset(nullptr);
     }
 
     END_TEST;

@@ -11,6 +11,7 @@
 #include <fbl/intrusive_single_list.h>
 #include <fbl/ref_ptr.h>
 #include <zircon/listnode.h>
+#include <zxcpp/new.h>
 #include <trace.h>
 
 #define LOCAL_TRACE 1
@@ -43,8 +44,8 @@ void page_alloc_request_init() {
     LTRACE_EXIT;
 }
 
-PageAllocRequest::PageAllocRequest() = default;
-PageAllocRequest::~PageAllocRequest() = default;
+PageAllocRequest::PageAllocRequest() {}
+PageAllocRequest::~PageAllocRequest() {}
 
 fbl::RefPtr<PageAllocRequest> PageAllocRequest::GetRequest() {
     fbl::AutoLock guard(&free_request_lock);
@@ -75,9 +76,12 @@ void PageAllocRequest::fbl_recycle() {
 
     LTRACEF("this %p: count %zu\n", this, free_request_count);
 
-    // TODO: manually destruct/construct here
+    // Tricky: manually deconstruct and reconstruct here so we can be added back
+    // to the free list
+    this->~PageAllocRequest();
+    new (reinterpret_cast<void*>(this)) PageAllocRequest;
 
-    //free_requests.push_front(this);
+    free_requests.push_back(fbl::AdoptRef(this));
     free_request_count++;
 }
 
