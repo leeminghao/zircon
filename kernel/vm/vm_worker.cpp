@@ -23,6 +23,7 @@ void VmWorker::Run(const char* name, VmWorkerRoutine routine, void* arg) {
     };
 
     // initialize the thread
+    dprintf(INFO, "VM Worker: starting '%s' worker thread\n", name);
     thread_ = thread_create(name, wrapper, this, HIGH_PRIORITY);
     DEBUG_ASSERT(thread_);
     thread_resume(thread_);

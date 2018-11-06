@@ -140,7 +140,7 @@ zx_time_t alloc_queue_worker_routine(void *arg) {
 }
 
 void pmm_start_workers(uint level) {
-    alloc_queue_worker.Run("PMM allocation queue worker", &alloc_queue_worker_routine, nullptr);
+    alloc_queue_worker.Run("PMM allocation queue", &alloc_queue_worker_routine, nullptr);
 }
 
 LK_INIT_HOOK(pmm_vm_workers, &pmm_start_workers, LK_INIT_LEVEL_THREADING);

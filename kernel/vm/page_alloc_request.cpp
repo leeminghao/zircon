@@ -44,8 +44,8 @@ void page_alloc_request_init() {
     LTRACE_EXIT;
 }
 
-PageAllocRequest::PageAllocRequest() {}
-PageAllocRequest::~PageAllocRequest() {}
+PageAllocRequest::PageAllocRequest() = default;
+PageAllocRequest::~PageAllocRequest() = default;
 
 fbl::RefPtr<PageAllocRequest> PageAllocRequest::GetRequest() {
     fbl::AutoLock guard(&free_request_lock);
