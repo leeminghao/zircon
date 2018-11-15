@@ -2,8 +2,8 @@
 
 ## Checking out the Zircon source code
 
-*** note
-NOTE: The Fuchsia source includes Zircon. See Fuchsia's
+***
+**NOTE:** The Fuchsia source includes Zircon. See Fuchsia's
 [Getting Started](https://fuchsia.googlesource.com/docs/+/master/getting_started.md)
 doc. Follow this doc to work on only Zircon.
 ***
